@@ -57,6 +57,38 @@ pipeline {
             }
         }
         
+        stage('Setup Docker Buildx') {
+            steps {
+                echo 'Setting up Docker Buildx...'
+                script {
+                    try {
+                        // Check if buildx is available
+                        def buildxAvailable = sh(
+                            script: "docker buildx version",
+                            returnStatus: true
+                        )
+                        
+                        if (buildxAvailable == 0) {
+                            echo 'Docker Buildx is available ✓'
+                            
+                            // Create and use a builder instance
+                            sh """
+                                docker buildx create --name mybuilder --use || true
+                                docker buildx inspect --bootstrap || true
+                            """
+                            env.USE_BUILDX = 'true'
+                        } else {
+                            echo '⚠️ Docker Buildx not available, will use standard docker build'
+                            env.USE_BUILDX = 'false'
+                        }
+                    } catch (Exception e) {
+                        echo "Buildx setup warning: ${e.getMessage()}"
+                        env.USE_BUILDX = 'false'
+                    }
+                }
+            }
+        }
+        
         stage('Build Info') {
             steps {
                 echo "🚀 Build Information Summary"
@@ -78,6 +110,7 @@ pipeline {
                 echo "   • Registry: AWS ECR"
                 echo "   • Region: ${AWS_DEFAULT_REGION}"
                 echo "   • Repository: ${ECR_REPOSITORY}"
+                echo "   • Using Buildx: ${env.USE_BUILDX}"
 
                 
                 script {
@@ -159,18 +192,33 @@ pipeline {
                 echo 'Building Docker image for linux/amd64 platform...'
                 script {
                     try {
-                        // Build the Docker image for linux/amd64 (x86_64) platform
-                        sh """
-                            docker buildx build \
-                                --platform linux/amd64 \
-                                --no-cache \
-                                --build-arg BUILD_DATE=\$(date -u +'%Y-%m-%dT%H:%M:%SZ') \
-                                --build-arg BUILD_VERSION=${BUILD_NUMBER} \
-                                --build-arg GIT_COMMIT=${env.GIT_COMMIT_SHORT} \
-                                -t ${IMAGE_URI}:${IMAGE_TAG} \
-                                --load \
-                                ${DOCKERFILE_PATH}
-                        """
+                        if (env.USE_BUILDX == 'true') {
+                            // Build using Docker Buildx for multi-platform support
+                            echo 'Using Docker Buildx...'
+                            sh """
+                                docker buildx build \
+                                    --platform linux/amd64 \
+                                    --no-cache \
+                                    --build-arg BUILD_DATE=\$(date -u +'%Y-%m-%dT%H:%M:%SZ') \
+                                    --build-arg BUILD_VERSION=${BUILD_NUMBER} \
+                                    --build-arg GIT_COMMIT=${env.GIT_COMMIT_SHORT} \
+                                    -t ${IMAGE_URI}:${IMAGE_TAG} \
+                                    --load \
+                                    ${DOCKERFILE_PATH}
+                            """
+                        } else {
+                            // Fallback to standard docker build
+                            echo 'Using standard Docker build (linux/amd64 default)...'
+                            sh """
+                                docker build \
+                                    --no-cache \
+                                    --build-arg BUILD_DATE=\$(date -u +'%Y-%m-%dT%H:%M:%SZ') \
+                                    --build-arg BUILD_VERSION=${BUILD_NUMBER} \
+                                    --build-arg GIT_COMMIT=${env.GIT_COMMIT_SHORT} \
+                                    -t ${IMAGE_URI}:${IMAGE_TAG} \
+                                    ${DOCKERFILE_PATH}
+                            """
+                        }
                         
                         // Tag with latest
                         sh "docker tag ${IMAGE_URI}:${IMAGE_TAG} ${IMAGE_URI}:latest"
