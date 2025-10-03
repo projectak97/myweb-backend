@@ -1,5 +1,6 @@
 # Backend Dockerfile
-FROM python:3.11-slim
+# Use platform-specific base image for linux/amd64
+FROM --platform=linux/amd64 python:3.11-slim
 
 WORKDIR /app
 
