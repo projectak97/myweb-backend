@@ -156,30 +156,38 @@ pipeline {
         
         stage('Build Docker Image') {
             steps {
-                echo 'Building Docker image...'
+                echo 'Building Docker image for linux/amd64 platform...'
                 script {
                     try {
-                        // Build the Docker image using shell commands
+                        // Build the Docker image for linux/amd64 (x86_64) platform
                         sh """
-                            docker build \
+                            docker buildx build \
+                                --platform linux/amd64 \
                                 --no-cache \
                                 --build-arg BUILD_DATE=\$(date -u +'%Y-%m-%dT%H:%M:%SZ') \
                                 --build-arg BUILD_VERSION=${BUILD_NUMBER} \
                                 --build-arg GIT_COMMIT=${env.GIT_COMMIT_SHORT} \
                                 -t ${IMAGE_URI}:${IMAGE_TAG} \
+                                --load \
                                 ${DOCKERFILE_PATH}
                         """
                         
                         // Tag with latest
                         sh "docker tag ${IMAGE_URI}:${IMAGE_TAG} ${IMAGE_URI}:latest"
                         
-                        echo 'Docker image built successfully ✓'
+                        echo 'Docker image built successfully for linux/amd64 ✓'
                         
                         // Get the image ID for reference
                         env.DOCKER_IMAGE_ID = sh(
                             script: "docker images --format '{{.ID}}' ${IMAGE_URI}:${IMAGE_TAG}",
                             returnStdout: true
                         ).trim()
+                        
+                        // Display platform information
+                        sh """
+                            echo 'Image Platform Information:'
+                            docker inspect ${IMAGE_URI}:${IMAGE_TAG} | grep -A 5 Architecture || true
+                        """
                         
                     } catch (Exception e) {
                         error("Docker build failed: ${e.getMessage()}")
