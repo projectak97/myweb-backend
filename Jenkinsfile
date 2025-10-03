@@ -189,7 +189,7 @@ pipeline {
         
         stage('Build Docker Image') {
             steps {
-                echo 'Building Docker image for linux/amd64 platform...'
+                echo 'Building Docker image for linux/arm64 platform...'
                 script {
                     try {
                         if (env.USE_BUILDX == 'true') {
@@ -197,7 +197,7 @@ pipeline {
                             echo 'Using Docker Buildx...'
                             sh """
                                 docker buildx build \
-                                    --platform linux/amd64 \
+                                    --platform linux/arm64 \
                                     --no-cache \
                                     --build-arg BUILD_DATE=\$(date -u +'%Y-%m-%dT%H:%M:%SZ') \
                                     --build-arg BUILD_VERSION=${BUILD_NUMBER} \
@@ -208,7 +208,7 @@ pipeline {
                             """
                         } else {
                             // Fallback to standard docker build
-                            echo 'Using standard Docker build (linux/amd64 default)...'
+                            echo 'Using standard Docker build (linux/arm64 default)...'
                             sh """
                                 docker build \
                                     --no-cache \
@@ -223,7 +223,7 @@ pipeline {
                         // Tag with latest
                         sh "docker tag ${IMAGE_URI}:${IMAGE_TAG} ${IMAGE_URI}:latest"
                         
-                        echo 'Docker image built successfully for linux/amd64 ✓'
+                        echo 'Docker image built successfully for linux/arm64 ✓'
                         
                         // Get the image ID for reference
                         env.DOCKER_IMAGE_ID = sh(
